@@ -1,36 +1,66 @@
-def calculate_loan_details(loan_amount, annual_rate, tenure_years):
-    monthly_rate = annual_rate / (12 * 100)
-    number_of_months = tenure_years * 12
+from pathlib import Path
 
-    if monthly_rate == 0:
-        monthly_emi = loan_amount / number_of_months
-    else:
-        monthly_emi = (
-            loan_amount
-            * monthly_rate
-            * (1 + monthly_rate) ** number_of_months
-            / ((1 + monthly_rate) ** number_of_months - 1)
-        )
+from flask import Flask, redirect, render_template, request, send_file, url_for
 
-    total_amount_paid = monthly_emi * number_of_months
-    total_interest = total_amount_paid - loan_amount
-
-    return monthly_emi, total_amount_paid, total_interest
+from analysis import generate_loan_analysis
 
 
-loan_amount = float(input("Loan Amount: "))
-interest_rate = float(input("Interest Rate (% per year): "))
-tenure = int(input("Tenure (years): "))
+BASE_DIR = Path(__file__).resolve().parent
+app = Flask(__name__)
 
-if loan_amount <= 0 or interest_rate < 0 or tenure <= 0:
-    print("Please enter valid values.")
-else:
-    monthly_emi, total_amount_paid, total_interest = calculate_loan_details(
-        loan_amount,
-        interest_rate,
-        tenure,
-    )
 
-    print(f"\nMonthly EMI: Rs. {monthly_emi:,.2f}")
-    print(f"Total Amount Paid: Rs. {total_amount_paid:,.2f}")
-    print(f"Total Interest: Rs. {total_interest:,.2f}")
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        try:
+            extra_monthly_payment = float(request.form["extra_monthly_payment"])
+            if extra_monthly_payment not in {0, 5000, 10000, 20000}:
+                raise ValueError(
+                    "Extra monthly prepayment must be Rs. 0, Rs. 5,000, "
+                    "Rs. 10,000, or Rs. 20,000."
+                )
+
+            customer = {
+                "name": request.form.get("customer_name", "").strip(),
+                "phone": request.form.get("phone", "").strip(),
+                "email": request.form.get("email", "").strip(),
+            }
+            generate_loan_analysis(
+                loan_amount=float(request.form["loan_amount"]),
+                current_rate=float(request.form["current_rate"]),
+                new_rate=float(request.form["new_rate"]),
+                remaining_tenure=int(request.form["remaining_tenure"]),
+                processing_fee=float(request.form["processing_fee"]),
+                legal_fee=float(request.form["legal_fee"]),
+                extra_monthly_payment=extra_monthly_payment,
+                customer=customer,
+            )
+        except (KeyError, ValueError, ZeroDivisionError) as error:
+            return render_template(
+                "index.html",
+                error=f"Please check the entered values: {error}",
+                values=request.form,
+            )
+
+        return redirect(url_for("view_report"))
+
+    return render_template("index.html", error=None, values={})
+
+
+@app.route("/report")
+def view_report():
+    return send_file(BASE_DIR / "report.html")
+
+
+@app.route("/savings_chart.html")
+def savings_chart():
+    return send_file(BASE_DIR / "savings_chart.html")
+
+
+@app.route("/break_even_chart.html")
+def break_even_chart():
+    return send_file(BASE_DIR / "break_even_chart.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
