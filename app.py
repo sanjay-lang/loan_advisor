@@ -1,12 +1,31 @@
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, send_file, url_for
+import requests
 
 from analysis import generate_loan_analysis
 
 
 BASE_DIR = Path(__file__).resolve().parent
 app = Flask(__name__)
+
+
+def save_lead_to_sheet(data):
+    webhook_url = os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL")
+    app.logger.info(f"Trying to save lead to Google Sheets: {data}")
+    app.logger.info(f"Webhook URL exists: {bool(webhook_url)}")
+    if not webhook_url:
+        app.logger.warning("GOOGLE_SHEETS_WEBHOOK_URL is not configured.")
+        return
+
+    try:
+        response = requests.post(webhook_url, json=data, timeout=5)
+        app.logger.info(f"Google Sheets response: {response.status_code} - {response.text}")
+        response.raise_for_status()
+    except Exception:
+        app.logger.exception("Failed to save lead to Google Sheets.")
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -25,15 +44,33 @@ def index():
                 "phone": request.form.get("phone", "").strip(),
                 "email": request.form.get("email", "").strip(),
             }
-            generate_loan_analysis(
-                loan_amount=float(request.form["loan_amount"]),
-                current_rate=float(request.form["current_rate"]),
-                new_rate=float(request.form["new_rate"]),
+            loan_amount = float(request.form["loan_amount"])
+            current_rate = float(request.form["current_rate"])
+            new_rate = float(request.form["new_rate"])
+
+            result = generate_loan_analysis(
+                loan_amount=loan_amount,
+                current_rate=current_rate,
+                new_rate=new_rate,
                 remaining_tenure=int(request.form["remaining_tenure"]),
                 processing_fee=float(request.form["processing_fee"]),
                 legal_fee=float(request.form["legal_fee"]),
                 extra_monthly_payment=extra_monthly_payment,
                 customer=customer,
+            )
+            save_lead_to_sheet(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "customer_name": customer["name"],
+                    "phone": customer["phone"],
+                    "email": customer["email"],
+                    "loan_amount": loan_amount,
+                    "current_rate": current_rate,
+                    "new_rate": new_rate,
+                    "monthly_saving": result["monthly_saving"],
+                    "net_saving": result["net_savings"],
+                    "recommendation": result["recommendation"],
+                }
             )
         except (KeyError, ValueError, ZeroDivisionError) as error:
             return render_template(
