@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+.git/
+reports/
+report.html
+savings_chart.html
+break_even_chart.html

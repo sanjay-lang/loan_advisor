@@ -1,4 +1,6 @@
 import os
+import base64
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,7 +11,77 @@ from analysis import generate_loan_analysis
 
 
 BASE_DIR = Path(__file__).resolve().parent
+REPORTS_DIR = BASE_DIR / "reports"
 app = Flask(__name__)
+
+
+def build_report_pdf_path(phone):
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    safe_phone = re.sub(r"[^0-9A-Za-z]+", "", phone or "unknown")
+    REPORTS_DIR.mkdir(exist_ok=True)
+    return REPORTS_DIR / f"report_{timestamp}_{safe_phone}.pdf"
+
+
+def configure_weasyprint_library_path():
+    library_paths = ["/opt/homebrew/lib", "/usr/local/lib"]
+    existing_path = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+    existing_paths = [path for path in existing_path.split(":") if path]
+    for library_path in library_paths:
+        if Path(library_path).exists() and library_path not in existing_paths:
+            existing_paths.append(library_path)
+    os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = ":".join(existing_paths)
+
+
+def create_report_pdf(html_path, pdf_path):
+    configure_weasyprint_library_path()
+
+    from weasyprint import HTML
+
+    HTML(filename=str(html_path), base_url=str(BASE_DIR)).write_pdf(str(pdf_path))
+
+
+def send_report_email(customer_email, pdf_path):
+    if not customer_email:
+        app.logger.info("Customer email not provided. Skipping report email.")
+        return False
+
+    api_key = os.environ.get("RESEND_API_KEY")
+    if not api_key:
+        app.logger.warning("RESEND_API_KEY is not configured. Skipping report email.")
+        return False
+
+    try:
+        attachment_content = base64.b64encode(Path(pdf_path).read_bytes()).decode("utf-8")
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": "Loan Advisor <onboarding@resend.dev>",
+                "to": [customer_email],
+                "subject": "Your Loan Advisor Report",
+                "html": (
+                    "<p>Hi,</p>"
+                    "<p>Your Loan Advisor report is attached as a PDF.</p>"
+                    "<p>Regards,<br>Loan Advisor</p>"
+                ),
+                "attachments": [
+                    {
+                        "filename": "Loan_Advisor_Report.pdf",
+                        "content": attachment_content,
+                    }
+                ],
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        app.logger.info(f"Report email sent to {customer_email}.")
+        return True
+    except Exception:
+        app.logger.exception("Failed to send report email.")
+        return False
 
 
 def save_lead_to_sheet(data):
@@ -58,6 +130,9 @@ def index():
                 extra_monthly_payment=extra_monthly_payment,
                 customer=customer,
             )
+
+            app.logger.info(f"Analysis result keys: {result.keys()}")
+
             save_lead_to_sheet(
                 {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -72,6 +147,13 @@ def index():
                     "recommendation": result["recommendation"],
                 }
             )
+
+            try:
+                pdf_path = build_report_pdf_path(customer["phone"])
+                create_report_pdf(BASE_DIR / result["report_path"], pdf_path)
+                send_report_email(customer["email"], pdf_path)
+            except Exception:
+                app.logger.exception("Failed to create or email the PDF report.")
         except (KeyError, ValueError, ZeroDivisionError) as error:
             return render_template(
                 "index.html",
