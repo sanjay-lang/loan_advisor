@@ -183,6 +183,8 @@ def generate_loan_analysis(
     )
 
     return {
+        "monthly_saving": monthly_saving,
+        "net_savings": net_savings,
         "recommendation": recommendation,
         "best_option": best_option,
         "best_savings": best_savings,
