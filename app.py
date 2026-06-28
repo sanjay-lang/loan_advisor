@@ -38,7 +38,8 @@ def create_report_pdf(html_path, pdf_path):
 
     from weasyprint import HTML
 
-    HTML(filename=str(html_path), base_url=str(BASE_DIR)).write_pdf(str(pdf_path))
+    html = Path(html_path).read_text(encoding="utf-8")
+    HTML(string=html, base_url=str(BASE_DIR)).write_pdf(str(pdf_path))
 
 
 def send_report_email(customer_email, pdf_path):

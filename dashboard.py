@@ -5,7 +5,15 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def format_lakh(amount):
+    if amount < 0:
+        return f"-₹{abs(amount) / 100000:,.1f} lakh"
     return f"₹{amount / 100000:,.1f} lakh"
+
+
+def format_money(amount):
+    if amount < 0:
+        return f"-₹{abs(amount):,.0f}"
+    return f"₹{amount:,.0f}"
 
 
 def format_break_even(months):
@@ -66,20 +74,60 @@ def generate_report(
     break_even_display = format_break_even(break_even)
     roi_display = format_roi(roi)
     rate_drop = current_rate - new_rate
+    recommendation_class = "neutral-recommendation"
+    if recommendation == "Strongly Recommended":
+        recommendation_class = "positive-recommendation"
+    elif recommendation == "Recommended":
+        recommendation_class = "caution-recommendation"
+    elif recommendation == "Not Recommended":
+        recommendation_class = "negative-recommendation"
+    recovery_text = "immediately" if break_even == 0 else f"within {break_even_display}"
+    if break_even == float("inf"):
+        recovery_text = "not currently recovered"
     star_count = max(0, min(5, round(transfer_score / 20)))
     transfer_stars = "★" * star_count + "☆" * (5 - star_count)
     net_savings_lakh = format_lakh(net_savings)
     interest_saved_lakh = format_lakh(prepayment_result["interest_saved"])
+    chart_values = [
+        ("Monthly Saving", monthly_saving),
+        ("Transfer Cost", transfer_cost),
+        ("Net Saving", net_savings),
+    ]
+    max_chart_value = max([abs(value) for _, value in chart_values] + [1])
+    pdf_savings_bars = "".join(
+        f"""
+                    <div class="pdf-bar-row">
+                        <span>{label}</span>
+                        <div class="pdf-bar-track">
+                            <div
+                                class="pdf-bar {'negative-bar' if value < 0 else ''}"
+                                style="width: {max(8, abs(value) / max_chart_value * 100):.1f}%;"
+                            ></div>
+                        </div>
+                        <strong>{format_money(value)}</strong>
+                    </div>
+        """
+        for label, value in chart_values
+    )
+    pdf_break_even_rows = "".join(
+        f"""
+                    <div class="pdf-timeline-row">
+                        <span>Month {month}</span>
+                        <strong>{format_money((monthly_saving * month) - transfer_cost)}</strong>
+                    </div>
+        """
+        for month in range(0, 5)
+    )
     strategy_rows = "".join(
         f"""
                         <tr class="{"best-row" if strategy["name"] == best_option else ""}">
                             <td>{strategy["name"]}</td>
-                            <td>₹{strategy["monthly_payment"]:,.0f}</td>
+                            <td>{format_money(strategy["monthly_payment"])}</td>
                             <td>{strategy["months"]} months</td>
-                            <td>₹{strategy["interest"]:,.0f}</td>
+                            <td>{format_money(strategy["interest"])}</td>
                             <td>
                                 <span class="savings-pill {get_savings_color_class(strategy["savings"])}">
-                                    {format_lakh(strategy["savings"]) if strategy["savings"] else "₹0"}
+                                    {format_lakh(strategy["savings"]) if strategy["savings"] else format_money(0)}
                                 </span>
                             </td>
                         </tr>
@@ -90,7 +138,7 @@ def generate_report(
         f"""
                     <div class="strategy-card {"strategy-winner" if strategy["name"] == best_option else ""}">
                         <span>{strategy["name"]}</span>
-                        <strong>{format_lakh(strategy["savings"]) if strategy["savings"] else "₹0"}</strong>
+                        <strong>{format_lakh(strategy["savings"]) if strategy["savings"] else format_money(0)}</strong>
                         <small>Total savings vs continuing</small>
                     </div>
         """
@@ -101,7 +149,7 @@ def generate_report(
                         <tr class="{"best-row" if index == 0 else ""}">
                             <td>{lender["name"]}</td>
                             <td>{lender["rate"]:.2f}%</td>
-                            <td>₹{lender["new_emi"]:,.0f}</td>
+                            <td>{format_money(lender["new_emi"])}</td>
                             <td>{format_lakh(lender["net_savings"])}</td>
                             <td>{format_break_even(lender["break_even_months"])}</td>
                         </tr>
@@ -112,8 +160,8 @@ def generate_report(
         f"""
                         <tr>
                             <td>{scenario["rate"]:.2f}%</td>
-                            <td>₹{scenario["new_emi"]:,.0f}</td>
-                            <td>₹{scenario["monthly_saving"]:,.0f}</td>
+                            <td>{format_money(scenario["new_emi"])}</td>
+                            <td>{format_money(scenario["monthly_saving"])}</td>
                             <td>{format_lakh(scenario["net_savings"])}</td>
                         </tr>
         """
@@ -132,6 +180,7 @@ def generate_report(
     html = f"""
     <html>
     <head>
+        <meta charset="UTF-8">
         <title>Loan Advisor Report</title>
 
         <style>
@@ -254,13 +303,32 @@ def generate_report(
                 margin-top: 30px;
                 padding: 30px;
                 border-radius: 20px;
-                background: #ecfdf5;
-                color: #087443;
                 font-size: 32px;
                 text-align: center;
                 font-weight: bold;
                 box-shadow: 0 6px 24px rgba(8,116,67,0.12);
                 overflow-wrap: anywhere;
+            }}
+
+            .positive-recommendation {{
+                background: #ecfdf5;
+                color: #087443;
+            }}
+
+            .caution-recommendation {{
+                background: #fffbeb;
+                color: #92400e;
+            }}
+
+            .negative-recommendation {{
+                background: #fef2f2;
+                color: #991b1b;
+                box-shadow: 0 6px 24px rgba(153,27,27,0.10);
+            }}
+
+            .neutral-recommendation {{
+                background: #f8fafc;
+                color: #334155;
             }}
 
             .transfer-score {{
@@ -341,6 +409,42 @@ def generate_report(
                 border: 1px solid #e4e8f0;
                 border-radius: 8px;
                 background: white;
+            }}
+
+            .pdf-chart {{
+                display: none;
+            }}
+
+            .pdf-bar-row {{
+                display: grid;
+                grid-template-columns: 135px 1fr 115px;
+                gap: 12px;
+                align-items: center;
+                margin: 12px 0;
+            }}
+
+            .pdf-bar-track {{
+                height: 18px;
+                overflow: hidden;
+                border-radius: 999px;
+                background: #e2e8f0;
+            }}
+
+            .pdf-bar {{
+                height: 100%;
+                border-radius: 999px;
+                background: #16a34a;
+            }}
+
+            .negative-bar {{
+                background: #ef4444;
+            }}
+
+            .pdf-timeline-row {{
+                display: flex;
+                justify-content: space-between;
+                padding: 10px 0;
+                border-bottom: 1px solid #e2e8f0;
             }}
 
             .comparison-table {{
@@ -807,6 +911,196 @@ def generate_report(
                     height: 360px;
                 }}
             }}
+
+            @page {{
+                size: A4;
+                margin: 14mm;
+            }}
+
+            @media print {{
+                html,
+                body {{
+                    width: auto;
+                    background: white;
+                    padding: 0;
+                    overflow: visible;
+                    font-family: Arial, sans-serif;
+                    color: #111827;
+                }}
+
+                .report {{
+                    width: 100%;
+                    max-width: none;
+                    margin: 0;
+                    padding: 0;
+                    overflow: visible;
+                    border-radius: 0;
+                    box-shadow: none;
+                }}
+
+                h1 {{
+                    font-size: 26px;
+                    margin-bottom: 16px;
+                }}
+
+                .customer-details {{
+                    border-radius: 8px;
+                    margin-bottom: 18px;
+                }}
+
+                .customer-detail {{
+                    padding: 10px;
+                }}
+
+                .customer-details {{
+                    grid-template-columns: 1fr 0.85fr 1.35fr;
+                }}
+
+                .customer-detail strong {{
+                    font-size: 12px;
+                    line-height: 1.25;
+                }}
+
+                .cards,
+                .decision-grid,
+                .prepayment-grid,
+                .strategy-grid {{
+                    gap: 10px;
+                }}
+
+                .cards {{
+                    margin-top: 18px;
+                    margin-bottom: 18px;
+                }}
+
+                .card,
+                .advisor-box,
+                .prepayment-box,
+                .strategy-optimizer,
+                .timeline,
+                .assumptions,
+                .health-box,
+                .wait-box,
+                .transfer-score {{
+                    padding: 14px;
+                    border-radius: 8px;
+                    box-shadow: none;
+                    break-inside: avoid;
+                }}
+
+                .card p {{
+                    font-size: 20px;
+                }}
+
+                .recommendation {{
+                    margin-top: 18px;
+                    padding: 16px;
+                    border-radius: 8px;
+                    font-size: 22px;
+                    box-shadow: none;
+                    break-inside: avoid;
+                }}
+
+                .score-number {{
+                    width: 86px;
+                    height: 86px;
+                    border-width: 8px;
+                    font-size: 20px;
+                }}
+
+                .advisor-box {{
+                    margin-top: 18px;
+                    line-height: 1.5;
+                }}
+
+                .advisor-box p,
+                .wait-box p {{
+                    font-size: 13px;
+                }}
+
+                .report-section,
+                .prepayment-box,
+                .strategy-optimizer,
+                .timeline,
+                .assumptions,
+                .decision-grid {{
+                    margin-top: 20px;
+                    overflow: visible;
+                }}
+
+                .report-section h2,
+                .prepayment-box h2,
+                .strategy-optimizer h2,
+                .timeline h2,
+                .assumptions h2,
+                .health-box h2,
+                .wait-box h2 {{
+                    margin-bottom: 10px;
+                    font-size: 18px;
+                }}
+
+                .chart-frame {{
+                    display: none;
+                }}
+
+                .pdf-chart {{
+                    display: block;
+                    padding: 12px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    background: #ffffff;
+                    break-inside: avoid;
+                }}
+
+                .comparison-table {{
+                    min-width: 0;
+                    width: 100%;
+                    table-layout: fixed;
+                    font-size: 10px;
+                    box-shadow: none;
+                    break-inside: avoid;
+                }}
+
+                .comparison-table th,
+                .comparison-table td {{
+                    padding: 7px;
+                    overflow-wrap: anywhere;
+                }}
+
+                .savings-pill {{
+                    min-width: 0;
+                    padding: 4px 6px;
+                    white-space: normal;
+                }}
+
+                .prepayment-card,
+                .strategy-card {{
+                    padding: 12px;
+                    border-radius: 8px;
+                }}
+
+                .prepayment-card strong,
+                .strategy-card strong {{
+                    font-size: 16px;
+                }}
+
+                .strategy-card strong {{
+                    margin: 4px 0 2px;
+                }}
+
+                .strategy-card span,
+                .strategy-card small {{
+                    line-height: 1.25;
+                    font-size: 10px;
+                }}
+
+                .best-option,
+                .optimizer-result {{
+                    padding: 12px;
+                    font-size: 15px;
+                    border-radius: 8px;
+                }}
+            }}
         </style>
 
     </head>
@@ -815,7 +1109,7 @@ def generate_report(
 
         <div class="report">
 
-            <h1>🏦 Loan Advisor Report</h1>
+            <h1>Loan Advisor Report</h1>
 
             <section class="customer-details">
                 <div class="customer-detail">
@@ -834,7 +1128,7 @@ def generate_report(
 
             <div class="row">
                 <div>Loan Amount</div>
-                <div>₹{loan_amount:,.0f}</div>
+                <div>{format_money(loan_amount)}</div>
             </div>
 
             <div class="row">
@@ -850,12 +1144,12 @@ def generate_report(
             <div class="cards">
                 <div class="card">
                      <h3>Monthly Saving</h3>
-                    <p>₹{monthly_saving:,.0f}</p>
+                    <p>{format_money(monthly_saving)}</p>
                 </div>
 
                 <div class="card">
                     <h3>Net Saving</h3>
-                     <p>₹{net_savings:,.0f}</p>
+                     <p>{format_money(net_savings)}</p>
                 </div>
 
                 <div class="card">
@@ -869,7 +1163,7 @@ def generate_report(
                 </div>
             </div>
 
-            <div class="recommendation">
+            <div class="recommendation {recommendation_class}">
                 {recommendation}
             </div>
 
@@ -886,7 +1180,7 @@ def generate_report(
             </div>
 
             <div class="advisor-box">
-                <h2>🤖 AI Loan Advisor</h2>
+                <h2>AI Loan Advisor</h2>
 
                 <p>
                     Because the interest rate drops by
@@ -897,9 +1191,9 @@ def generate_report(
                 </p>
 
                 <p>
-                    The transfer cost of <b>₹{transfer_cost:,.0f}</b>
-                    can be recovered <b>{"immediately" if break_even == 0 else f"within {break_even_display}"}</b>,
-                    making this an attractive refinancing opportunity
+                    The transfer cost of <b>{format_money(transfer_cost)}</b>
+                    is <b>{recovery_text}</b>,
+                    making this a refinancing opportunity
                     with an ROI of <b>{roi_display}</b>.
                 </p>
 
@@ -916,6 +1210,9 @@ def generate_report(
                     src="savings_chart.html"
                     title="Balance Transfer Savings Chart"
                 ></iframe>
+                <div class="pdf-chart">
+                    {pdf_savings_bars}
+                </div>
             </section>
 
             <section class="report-section">
@@ -936,13 +1233,13 @@ def generate_report(
                         </tr>
                         <tr>
                             <td>EMI</td>
-                            <td>₹{current_emi:,.0f}</td>
-                            <td>₹{new_emi:,.0f}</td>
+                            <td>{format_money(current_emi)}</td>
+                            <td>{format_money(new_emi)}</td>
                         </tr>
                         <tr>
                             <td>Monthly Saving</td>
                             <td>—</td>
-                            <td>₹{monthly_saving:,.0f}</td>
+                            <td>{format_money(monthly_saving)}</td>
                         </tr>
                         <tr>
                             <td>Net Saving</td>
@@ -999,6 +1296,9 @@ def generate_report(
                     src="break_even_chart.html"
                     title="Break-even Timeline Chart"
                 ></iframe>
+                <div class="pdf-chart">
+                    {pdf_break_even_rows}
+                </div>
             </section>
 
             <section class="decision-grid">
@@ -1032,7 +1332,7 @@ def generate_report(
                 <h2>Micro Prepayment Simulator</h2>
                 <p>
                     See what happens when you add
-                    <b>₹{extra_monthly_payment:,.0f}</b>
+                    <b>{format_money(extra_monthly_payment)}</b>
                     to the monthly payment after transferring the loan.
                 </p>
 
@@ -1071,8 +1371,8 @@ def generate_report(
                 </div>
 
                 <div class="optimizer-result">
-                    🏆 Best Strategy: {best_option}
-                    — Save {format_lakh(best_savings)}
+                    Best Strategy: {best_option}
+                    - Save {format_lakh(best_savings)}
                 </div>
             </section>
 
@@ -1098,7 +1398,7 @@ def generate_report(
                 <h2>Transfer Timeline</h2>
                 <div class="timeline-item">
                     <strong>Today</strong>
-                    <span>Pay transfer costs of ₹{transfer_cost:,.0f}</span>
+                    <span>Pay transfer costs of {format_money(transfer_cost)}</span>
                 </div>
                 <div class="timeline-item">
                     <strong>Break-even: {break_even_display}</strong>
@@ -1107,7 +1407,7 @@ def generate_report(
                 <div class="timeline-item">
                     <strong>Loan closes in {prepayment_result["new_tenure_years"]:.1f} years</strong>
                     <span>
-                        Transfer plus ₹{extra_monthly_payment:,.0f} monthly prepayment
+                        Transfer plus {format_money(extra_monthly_payment)} monthly prepayment
                         removes {prepayment_result["emis_saved"]} EMIs.
                     </span>
                 </div>
@@ -1135,5 +1435,5 @@ def generate_report(
     </html>
     """
 
-    with open(BASE_DIR / "report.html", "w") as file:
+    with open(BASE_DIR / "report.html", "w", encoding="utf-8") as file:
         file.write(html)

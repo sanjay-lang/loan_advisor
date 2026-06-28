@@ -187,12 +187,12 @@ def calculate_transfer_score(
 
 def get_recommendation(decision_score, monthly_saving, net_savings):
     if monthly_saving <= 0 or net_savings <= 0:
-        return "❌ Not Recommended"
+        return "Not Recommended"
     if decision_score >= 75:
-        return "🟢 Strongly Recommended"
+        return "Strongly Recommended"
     if decision_score >= 50:
-        return "🟡 Recommended"
-    return "⚪ Marginal Opportunity"
+        return "Recommended"
+    return "Marginal Opportunity"
 
 
 def compare_loans(current_loan, new_loan,
