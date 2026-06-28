@@ -12,7 +12,7 @@ from analysis import generate_loan_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
-DEFAULT_FROM_EMAIL = "Loan Advisor <onboarding@resend.dev>"
+DEFAULT_FROM_EMAIL = "onboarding@resend.dev"
 app = Flask(__name__)
 
 
@@ -53,37 +53,53 @@ def send_report_email(customer_email, pdf_path):
 
     try:
         attachment_content = base64.b64encode(Path(pdf_path).read_bytes()).decode("utf-8")
-        from_email = os.environ.get("RESEND_FROM_EMAIL", DEFAULT_FROM_EMAIL)
+        payload = {
+            "from": DEFAULT_FROM_EMAIL,
+            "to": [customer_email],
+            "subject": "Your Loan Advisor Report",
+            "html": (
+                "<p>Hi,</p>"
+                "<p>Your Loan Advisor report is attached as a PDF.</p>"
+                "<p>Regards,<br>Loan Advisor</p>"
+            ),
+            "attachments": [
+                {
+                    "filename": "Loan_Advisor_Report.pdf",
+                    "content": attachment_content,
+                }
+            ],
+        }
+        app.logger.info(
+            "Sending Resend email payload: from=%s to=%s attachment=%s "
+            "base64_length=%s",
+            payload["from"],
+            payload["to"],
+            payload["attachments"][0]["filename"],
+            len(attachment_content),
+        )
         response = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": from_email,
-                "to": [customer_email],
-                "subject": "Your Loan Advisor Report",
-                "html": (
-                    "<p>Hi,</p>"
-                    "<p>Your Loan Advisor report is attached as a PDF.</p>"
-                    "<p>Regards,<br>Loan Advisor</p>"
-                ),
-                "attachments": [
-                    {
-                        "filename": "Loan_Advisor_Report.pdf",
-                        "content": attachment_content,
-                    }
-                ],
-            },
+            json=payload,
             timeout=10,
         )
-        app.logger.info(
-            "Resend response for %s: %s %s",
-            customer_email,
-            response.status_code,
-            response.text,
-        )
+        if response.status_code >= 400:
+            app.logger.error(
+                "Resend response for %s: status=%s body=%s",
+                customer_email,
+                response.status_code,
+                response.text,
+            )
+        else:
+            app.logger.info(
+                "Resend response for %s: status=%s body=%s",
+                customer_email,
+                response.status_code,
+                response.text,
+            )
         response.raise_for_status()
         app.logger.info("Report email accepted by Resend for %s.", customer_email)
         return True
