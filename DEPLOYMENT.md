@@ -10,6 +10,7 @@ Set these in the Render service environment:
 
 ```text
 RESEND_API_KEY=<your Resend API key>
+RESEND_FROM_EMAIL=<optional verified sender, for example Loan Advisor <reports@yourdomain.com>>
 GOOGLE_SHEETS_WEBHOOK_URL=<optional Google Sheets webhook>
 ```
 

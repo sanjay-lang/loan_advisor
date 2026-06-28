@@ -12,6 +12,7 @@ from analysis import generate_loan_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
+DEFAULT_FROM_EMAIL = "Loan Advisor <onboarding@resend.dev>"
 app = Flask(__name__)
 
 
@@ -52,6 +53,7 @@ def send_report_email(customer_email, pdf_path):
 
     try:
         attachment_content = base64.b64encode(Path(pdf_path).read_bytes()).decode("utf-8")
+        from_email = os.environ.get("RESEND_FROM_EMAIL", DEFAULT_FROM_EMAIL)
         response = requests.post(
             "https://api.resend.com/emails",
             headers={
@@ -59,7 +61,7 @@ def send_report_email(customer_email, pdf_path):
                 "Content-Type": "application/json",
             },
             json={
-                "from": "Loan Advisor <onboarding@resend.dev>",
+                "from": from_email,
                 "to": [customer_email],
                 "subject": "Your Loan Advisor Report",
                 "html": (
@@ -76,8 +78,14 @@ def send_report_email(customer_email, pdf_path):
             },
             timeout=10,
         )
+        app.logger.info(
+            "Resend response for %s: %s %s",
+            customer_email,
+            response.status_code,
+            response.text,
+        )
         response.raise_for_status()
-        app.logger.info(f"Report email sent to {customer_email}.")
+        app.logger.info("Report email accepted by Resend for %s.", customer_email)
         return True
     except Exception:
         app.logger.exception("Failed to send report email.")
