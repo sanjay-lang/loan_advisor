@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 
@@ -109,6 +110,20 @@ def generate_report(
         """
         for label, value in chart_values
     )
+    if break_even == float("inf"):
+        break_even_months = [0, 1, 2, 3, 4]
+    else:
+        break_even_months = sorted(
+            {
+                0,
+                1,
+                2,
+                3,
+                4,
+                max(0, math.floor(break_even)),
+                max(0, math.ceil(break_even)),
+            }
+        )
     pdf_break_even_rows = "".join(
         f"""
                     <div class="pdf-timeline-row">
@@ -116,7 +131,7 @@ def generate_report(
                         <strong>{format_money((monthly_saving * month) - transfer_cost)}</strong>
                     </div>
         """
-        for month in range(0, 5)
+        for month in break_even_months
     )
     strategy_rows = "".join(
         f"""
@@ -914,7 +929,7 @@ def generate_report(
 
             @page {{
                 size: A4;
-                margin: 14mm;
+                margin: 10mm;
             }}
 
             @media print {{
@@ -925,6 +940,7 @@ def generate_report(
                     padding: 0;
                     overflow: visible;
                     font-family: Arial, sans-serif;
+                    font-size: 12px;
                     color: #111827;
                 }}
 
@@ -939,17 +955,22 @@ def generate_report(
                 }}
 
                 h1 {{
-                    font-size: 26px;
-                    margin-bottom: 16px;
+                    font-size: 22px;
+                    margin-bottom: 12px;
                 }}
 
                 .customer-details {{
                     border-radius: 8px;
-                    margin-bottom: 18px;
+                    margin-bottom: 14px;
                 }}
 
                 .customer-detail {{
-                    padding: 10px;
+                    padding: 8px 10px;
+                }}
+
+                .customer-detail span {{
+                    font-size: 9px;
+                    margin-bottom: 4px;
                 }}
 
                 .customer-details {{
@@ -957,8 +978,12 @@ def generate_report(
                 }}
 
                 .customer-detail strong {{
-                    font-size: 12px;
+                    font-size: 10.5px;
                     line-height: 1.25;
+                }}
+
+                .row {{
+                    padding: 8px 0;
                 }}
 
                 .cards,
@@ -969,8 +994,8 @@ def generate_report(
                 }}
 
                 .cards {{
-                    margin-top: 18px;
-                    margin-bottom: 18px;
+                    margin-top: 14px;
+                    margin-bottom: 14px;
                 }}
 
                 .card,
@@ -980,42 +1005,68 @@ def generate_report(
                 .timeline,
                 .assumptions,
                 .health-box,
-                .wait-box,
-                .transfer-score {{
-                    padding: 14px;
+                    .wait-box,
+                    .transfer-score {{
+                    padding: 11px;
                     border-radius: 8px;
                     box-shadow: none;
                     break-inside: avoid;
                 }}
 
+                .card h3 {{
+                    margin-bottom: 5px;
+                    font-size: 14px;
+                }}
+
                 .card p {{
-                    font-size: 20px;
+                    font-size: 17px;
                 }}
 
                 .recommendation {{
-                    margin-top: 18px;
-                    padding: 16px;
+                    margin-top: 12px;
+                    padding: 12px;
                     border-radius: 8px;
-                    font-size: 22px;
+                    font-size: 18px;
                     box-shadow: none;
                     break-inside: avoid;
                 }}
 
                 .score-number {{
-                    width: 86px;
-                    height: 86px;
-                    border-width: 8px;
-                    font-size: 20px;
+                    width: 70px;
+                    height: 70px;
+                    border-width: 7px;
+                    font-size: 16px;
+                }}
+
+                .transfer-score {{
+                    grid-template-columns: 86px 1fr;
+                    gap: 10px;
+                    margin-top: 16px;
+                }}
+
+                .score-copy h2 {{
+                    font-size: 18px;
+                    margin-bottom: 4px;
+                }}
+
+                .stars {{
+                    font-size: 18px;
+                    letter-spacing: 0;
+                }}
+
+                .score-copy p {{
+                    margin: 6px 0 0;
                 }}
 
                 .advisor-box {{
-                    margin-top: 18px;
-                    line-height: 1.5;
+                    margin-top: 14px;
+                    line-height: 1.35;
                 }}
 
                 .advisor-box p,
                 .wait-box p {{
-                    font-size: 13px;
+                    font-size: 11px;
+                    margin: 7px 0;
                 }}
 
                 .report-section,
@@ -1024,7 +1075,7 @@ def generate_report(
                 .timeline,
                 .assumptions,
                 .decision-grid {{
-                    margin-top: 20px;
+                    margin-top: 14px;
                     overflow: visible;
                 }}
 
@@ -1035,8 +1086,13 @@ def generate_report(
                 .assumptions h2,
                 .health-box h2,
                 .wait-box h2 {{
-                    margin-bottom: 10px;
-                    font-size: 18px;
+                    margin-bottom: 7px;
+                    font-size: 16px;
+                    break-after: avoid;
+                }}
+
+                .disclaimer {{
+                    break-after: avoid;
                 }}
 
                 .chart-frame {{
@@ -1045,7 +1101,7 @@ def generate_report(
 
                 .pdf-chart {{
                     display: block;
-                    padding: 12px;
+                    padding: 9px 10px;
                     border: 1px solid #e2e8f0;
                     border-radius: 8px;
                     background: #ffffff;
@@ -1056,14 +1112,14 @@ def generate_report(
                     min-width: 0;
                     width: 100%;
                     table-layout: fixed;
-                    font-size: 10px;
+                    font-size: 8.8px;
                     box-shadow: none;
                     break-inside: avoid;
                 }}
 
                 .comparison-table th,
                 .comparison-table td {{
-                    padding: 7px;
+                    padding: 5px 6px;
                     overflow-wrap: anywhere;
                 }}
 
@@ -1075,13 +1131,13 @@ def generate_report(
 
                 .prepayment-card,
                 .strategy-card {{
-                    padding: 12px;
+                    padding: 9px 10px;
                     border-radius: 8px;
                 }}
 
                 .prepayment-card strong,
                 .strategy-card strong {{
-                    font-size: 16px;
+                    font-size: 14px;
                 }}
 
                 .strategy-card strong {{
@@ -1096,9 +1152,100 @@ def generate_report(
 
                 .best-option,
                 .optimizer-result {{
-                    padding: 12px;
-                    font-size: 15px;
+                    padding: 10px;
+                    font-size: 13px;
                     border-radius: 8px;
+                }}
+
+                .health-score {{
+                    margin-bottom: 10px;
+                }}
+
+                .health-score strong {{
+                    font-size: 28px;
+                }}
+
+                .health-row {{
+                    padding: 6px 0;
+                }}
+
+                .confidence {{
+                    margin-top: 10px;
+                    padding: 10px;
+                }}
+
+                .confidence strong {{
+                    font-size: 20px;
+                }}
+
+                .wait-answer {{
+                    margin-bottom: 8px;
+                    padding: 7px 10px;
+                    border-radius: 10px;
+                    font-size: 14px;
+                }}
+
+                .prepayment-box > p,
+                .strategy-optimizer > p,
+                .timeline-item span,
+                .assumptions ul {{
+                    font-size: 11px;
+                    line-height: 1.45;
+                }}
+
+                .prepayment-grid,
+                .strategy-grid {{
+                    margin-top: 12px;
+                    align-items: start;
+                }}
+
+                .strategy-grid {{
+                    display: none;
+                }}
+
+                .decision-grid {{
+                    align-items: start;
+                }}
+
+                .strategy-card,
+                .health-box,
+                .wait-box {{
+                    align-self: start;
+                }}
+
+                .best-option,
+                .optimizer-result {{
+                    margin-top: 12px;
+                }}
+
+                .timeline-item {{
+                    padding: 0 0 14px 28px;
+                }}
+
+                .timeline-item strong {{
+                    margin-bottom: 3px;
+                }}
+
+                .assumptions {{
+                    padding: 12px 14px;
+                }}
+
+                .assumptions ul {{
+                    padding-left: 16px;
+                }}
+
+                .pdf-bar-row {{
+                    grid-template-columns: 115px 1fr 90px;
+                    gap: 9px;
+                    margin: 7px 0;
+                }}
+
+                .pdf-bar-track {{
+                    height: 13px;
+                }}
+
+                .pdf-timeline-row {{
+                    padding: 6px 0;
                 }}
             }}
         </style>
