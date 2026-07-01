@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .DS_Store
 reports/*.pdf
+latest_report_context.json
 report.html
 savings_chart.html
 break_even_chart.html

@@ -1,5 +1,6 @@
 import os
 import base64
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,9 +13,28 @@ from analysis import generate_loan_analysis
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
+REPORT_CONTEXT_PATH = BASE_DIR / "latest_report_context.json"
 DEFAULT_FROM_EMAIL = "onboarding@resend.dev"
 app = Flask(__name__)
 latest_report_context = {}
+
+
+def save_latest_report_context(context):
+    try:
+        REPORT_CONTEXT_PATH.write_text(json.dumps(context), encoding="utf-8")
+    except Exception:
+        app.logger.exception("Failed to save latest report context.")
+
+
+def load_latest_report_context():
+    if not REPORT_CONTEXT_PATH.exists():
+        return {}
+
+    try:
+        return json.loads(REPORT_CONTEXT_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        app.logger.exception("Failed to load latest report context.")
+        return {}
 
 
 def format_money(amount):
@@ -331,6 +351,7 @@ def index():
 
             app.logger.info(f"Analysis result keys: {result.keys()}")
             latest_report_context = result.get("report_context", {})
+            save_latest_report_context(latest_report_context)
 
             save_lead_to_sheet(
                 {
@@ -369,14 +390,19 @@ def index():
 
 @app.route("/ask", methods=["POST"])
 def ask():
+    global latest_report_context
+
     payload = request.get_json(silent=True) or {}
     question = (payload.get("question") or "").strip()
     if not question:
         return jsonify({"answer": "Please type a question about your loan report."}), 400
 
-    answer = ask_openai(question, latest_report_context)
+    report_context = latest_report_context or load_latest_report_context()
+    latest_report_context = report_context
+
+    answer = ask_openai(question, report_context)
     if not answer:
-        answer = fallback_chat_answer(question, latest_report_context)
+        answer = fallback_chat_answer(question, report_context)
 
     return jsonify({"answer": answer})
 
