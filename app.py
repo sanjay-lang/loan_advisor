@@ -162,6 +162,8 @@ def index():
                 {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "customer_name": customer["name"],
+                    "customerName": customer["name"],
+                    "name": customer["name"],
                     "phone": customer["phone"],
                     "email": customer["email"],
                     "loan_amount": loan_amount,
