@@ -85,10 +85,28 @@ def generate_report(
     recovery_text = "immediately" if break_even == 0 else f"within {break_even_display}"
     if break_even == float("inf"):
         recovery_text = "not currently recovered"
-    star_count = max(0, min(5, round(transfer_score / 20)))
-    transfer_stars = "★" * star_count + "☆" * (5 - star_count)
     net_savings_lakh = format_lakh(net_savings)
     interest_saved_lakh = format_lakh(prepayment_result["interest_saved"])
+    if monthly_saving > 0 and net_savings > 0:
+        conversational_summary = (
+            f"Switching can reduce the EMI by {format_money(monthly_saving)} per month "
+            f"and create about {net_savings_lakh} in net savings."
+        )
+    elif monthly_saving > 0:
+        conversational_summary = (
+            f"The EMI comes down by {format_money(monthly_saving)} per month, "
+            "but the transfer costs reduce the overall benefit."
+        )
+    else:
+        conversational_summary = (
+            "The new loan does not improve the EMI meaningfully, so this transfer needs caution."
+        )
+    next_step_summary = (
+        f"Best path right now: {best_option}, with estimated savings of "
+        f"{format_lakh(best_savings)}."
+    )
+    star_count = max(0, min(5, round(transfer_score / 20)))
+    transfer_stars = "★" * star_count + "☆" * (5 - star_count)
     chart_values = [
         ("Monthly Saving", monthly_saving),
         ("Transfer Cost", transfer_cost),
@@ -212,22 +230,26 @@ def generate_report(
                 width: 100%;
                 min-width: 0;
                 margin: 0;
-                font-family: Arial;
-                background: #f5f7fa;
-                padding: 40px;
+                font-family: Arial, Helvetica, sans-serif;
+                background:
+                    radial-gradient(circle at top left, rgba(203, 213, 225, 0.42), transparent 34%),
+                    linear-gradient(180deg, #f7fafc 0%, #eef4f8 48%, #f8fafc 100%);
+                color: #152033;
+                padding: 32px;
                 overflow-x: hidden;
             }}
 
             .report {{
                 width: 100%;
-                max-width: 980px;
+                max-width: 1120px;
                 min-width: 0;
                 margin: auto;
-                padding: 40px;
+                padding: 36px;
                 overflow: hidden;
                 background: white;
-                border-radius: 8px;
-                box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                border-radius: 24px;
+                box-shadow: 0 24px 70px rgba(15, 23, 42, 0.10);
             }}
 
             .report > * {{
@@ -238,23 +260,36 @@ def generate_report(
             .cards {{
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 20px;
-                margin-top: 40px;
-                margin-bottom: 40px;
+                gap: 18px;
+                margin-top: 24px;
+                margin-bottom: 24px;
             }}
 
             .card {{
-                background: white;
+                position: relative;
+                background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
                 min-width: 0;
-                padding: 24px;
-                border: 1px solid #e4e8f0;
-                border-radius: 8px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                padding: 22px;
+                border: 1px solid #dfe7f2;
+                border-radius: 18px;
+                box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+            }}
+
+            .card::before {{
+                content: "";
+                position: absolute;
+                top: 18px;
+                right: 18px;
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                background: #14b8a6;
             }}
 
             .card h3 {{
-                color: #666;
+                color: #64748b;
                 margin: 0 0 10px;
+                font-size: 15px;
             }}
 
             .card p {{
@@ -266,9 +301,42 @@ def generate_report(
             }}
 
             h1 {{
-                margin: 0 0 24px;
-                color: #1e3a8a;
+                margin: 0;
+                color: #122b6f;
+                font-size: 42px;
+                line-height: 1.05;
                 overflow-wrap: anywhere;
+            }}
+
+            .report-hero {{
+                margin-bottom: 28px;
+                padding: 28px;
+                border-radius: 24px;
+                background:
+                    linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(236, 253, 245, 0.82)),
+                    #f8fafc;
+                border: 1px solid #dbeafe;
+            }}
+
+            .hero-topline {{
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+                padding: 7px 11px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.72);
+                color: #0f766e;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+
+            .hero-copy {{
+                max-width: 760px;
+                margin: 12px 0 0;
+                color: #475569;
+                font-size: 18px;
+                line-height: 1.6;
             }}
 
             .row {{
@@ -288,10 +356,10 @@ def generate_report(
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 1px;
-                margin: 0 0 28px;
+                margin: 24px 0 0;
                 overflow: hidden;
-                border: 1px solid #dbe3f5;
-                border-radius: 12px;
+                border: 1px solid #cfe0f5;
+                border-radius: 16px;
                 background: #dbe3f5;
             }}
 
@@ -315,10 +383,10 @@ def generate_report(
             }}
 
             .recommendation {{
-                margin-top: 30px;
-                padding: 30px;
-                border-radius: 20px;
-                font-size: 32px;
+                margin-top: 22px;
+                padding: 24px;
+                border-radius: 22px;
+                font-size: 30px;
                 text-align: center;
                 font-weight: bold;
                 box-shadow: 0 6px 24px rgba(8,116,67,0.12);
@@ -349,13 +417,13 @@ def generate_report(
             .transfer-score {{
                 display: grid;
                 grid-template-columns: auto 1fr;
-                gap: 24px;
+                gap: 22px;
                 align-items: center;
-                margin-top: 30px;
-                padding: 28px;
-                border: 1px solid #dbe3f5;
-                border-radius: 20px;
-                background: #f7f9ff;
+                margin-top: 22px;
+                padding: 24px;
+                border: 1px solid #d8e5f6;
+                border-radius: 22px;
+                background: linear-gradient(135deg, #f8fbff, #f0fdfa);
             }}
 
             .score-number {{
@@ -384,12 +452,13 @@ def generate_report(
             .advisor-box {{
                 min-width: 0;
                 overflow: hidden;
-                margin-top: 40px;
-                padding: 30px;
+                margin-top: 24px;
+                padding: 26px;
                 background: #ffffff;
-                border-radius: 20px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-                line-height: 1.8;
+                border: 1px solid #e2e8f0;
+                border-radius: 22px;
+                box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07);
+                line-height: 1.7;
             }}
 
             .advisor-box h2 {{
@@ -398,15 +467,48 @@ def generate_report(
             }}
 
             .advisor-box p {{
-                font-size: 20px;
+                font-size: 18px;
                 color: #333;
                 overflow-wrap: anywhere;
+            }}
+
+            .insight-grid {{
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 16px;
+                margin: 24px 0;
+            }}
+
+            .insight-card {{
+                padding: 22px;
+                border: 1px solid #d8e5f6;
+                border-radius: 22px;
+                background: #f8fbff;
+            }}
+
+            .insight-card span {{
+                display: block;
+                margin-bottom: 8px;
+                color: #64748b;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+
+            .insight-card strong {{
+                display: block;
+                color: #172554;
+                font-size: 20px;
+                line-height: 1.4;
             }}
 
             .report-section {{
                 width: 100%;
                 min-width: 0;
-                margin-top: 40px;
+                margin-top: 34px;
+                padding: 26px;
+                border: 1px solid #e2e8f0;
+                border-radius: 22px;
+                background: #ffffff;
                 overflow-x: auto;
                 overscroll-behavior-inline: contain;
             }}
@@ -422,7 +524,7 @@ def generate_report(
                 max-width: 100%;
                 height: 460px;
                 border: 1px solid #e4e8f0;
-                border-radius: 8px;
+                border-radius: 16px;
                 background: white;
             }}
 
@@ -464,20 +566,20 @@ def generate_report(
 
             .chat-widget {{
                 position: fixed;
-                right: 24px;
-                bottom: 24px;
+                right: 22px;
+                bottom: 22px;
                 z-index: 20;
-                width: min(380px, calc(100vw - 32px));
+                width: min(410px, calc(100vw - 32px));
                 overflow: hidden;
-                border: 1px solid #dbe3f5;
-                border-radius: 12px;
-                background: white;
-                box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+                border: 1px solid rgba(148, 163, 184, 0.25);
+                border-radius: 24px;
+                background: rgba(255, 255, 255, 0.96);
+                box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
             }}
 
             .chat-header {{
-                padding: 13px 16px;
-                background: #243c8f;
+                padding: 16px 18px;
+                background: linear-gradient(135deg, #1e3a8a, #0f766e);
                 color: white;
                 font-weight: bold;
             }}
@@ -486,16 +588,16 @@ def generate_report(
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
-                max-height: 260px;
+                max-height: 300px;
                 overflow-y: auto;
-                padding: 14px;
+                padding: 16px;
                 background: #f8fafc;
             }}
 
             .chat-message {{
                 max-width: 88%;
                 padding: 10px 12px;
-                border-radius: 10px;
+                border-radius: 16px;
                 font-size: 13px;
                 line-height: 1.45;
             }}
@@ -516,7 +618,7 @@ def generate_report(
             .chat-form {{
                 display: flex;
                 gap: 8px;
-                padding: 12px;
+                padding: 14px;
                 border-top: 1px solid #e2e8f0;
                 background: white;
             }}
@@ -527,7 +629,7 @@ def generate_report(
                 height: 38px;
                 padding: 0 10px;
                 border: 1px solid #cfd7e6;
-                border-radius: 8px;
+                border-radius: 14px;
                 font: inherit;
             }}
 
@@ -535,7 +637,7 @@ def generate_report(
                 height: 38px;
                 padding: 0 14px;
                 border: 0;
-                border-radius: 8px;
+                border-radius: 14px;
                 background: #087443;
                 color: white;
                 font-weight: bold;
@@ -915,6 +1017,15 @@ def generate_report(
                     border-radius: 0;
                 }}
 
+                .report-hero {{
+                    padding: 22px;
+                    border-radius: 18px;
+                }}
+
+                .hero-copy {{
+                    font-size: 15px;
+                }}
+
                 .cards {{
                     grid-template-columns: 1fr;
                     margin-top: 28px;
@@ -970,6 +1081,16 @@ def generate_report(
 
                 .decision-grid {{
                     grid-template-columns: 1fr;
+                }}
+
+                .insight-grid {{
+                    grid-template-columns: 1fr;
+                }}
+
+                .chat-widget {{
+                    right: 10px;
+                    bottom: 10px;
+                    width: calc(100vw - 20px);
                 }}
 
                 .report-section h2 {{
@@ -1044,6 +1165,18 @@ def generate_report(
                     margin-bottom: 12px;
                 }}
 
+                .report-hero {{
+                    margin-bottom: 14px;
+                    padding: 0;
+                    border: 0;
+                    background: white;
+                }}
+
+                .hero-topline,
+                .hero-copy {{
+                    display: none;
+                }}
+
                 .customer-details {{
                     border-radius: 8px;
                     margin-bottom: 14px;
@@ -1081,6 +1214,28 @@ def generate_report(
                 .cards {{
                     margin-top: 14px;
                     margin-bottom: 14px;
+                }}
+
+                .insight-grid {{
+                    grid-template-columns: 1fr 1fr;
+                    gap: 8px;
+                    margin: 12px 0;
+                }}
+
+                .insight-card {{
+                    padding: 9px 10px;
+                    border-radius: 8px;
+                    break-inside: avoid;
+                }}
+
+                .insight-card span {{
+                    margin-bottom: 4px;
+                    font-size: 9px;
+                }}
+
+                .insight-card strong {{
+                    font-size: 10.5px;
+                    line-height: 1.3;
                 }}
 
                 .card,
@@ -1162,6 +1317,13 @@ def generate_report(
                 .decision-grid {{
                     margin-top: 14px;
                     overflow: visible;
+                }}
+
+                .report-section {{
+                    padding: 0;
+                    border: 0;
+                    border-radius: 0;
+                    background: transparent;
                 }}
 
                 .report-section h2,
@@ -1345,21 +1507,28 @@ def generate_report(
 
         <div class="report">
 
-            <h1>Loan Advisor Report</h1>
+            <section class="report-hero">
+                <div class="hero-topline">Personalized home loan review</div>
+                <h1>Loan Advisor Report</h1>
+                <p class="hero-copy">
+                    Hi {customer_name}, here is the plain-English view of your loan transfer,
+                    prepayment, and best strategy options.
+                </p>
 
-            <section class="customer-details">
-                <div class="customer-detail">
-                    <span>Customer Name</span>
-                    <strong>{customer_name}</strong>
-                </div>
-                <div class="customer-detail">
-                    <span>Phone Number</span>
-                    <strong>{customer_phone}</strong>
-                </div>
-                <div class="customer-detail">
-                    <span>Email Address</span>
-                    <strong>{customer_email}</strong>
-                </div>
+                <section class="customer-details">
+                    <div class="customer-detail">
+                        <span>Customer Name</span>
+                        <strong>{customer_name}</strong>
+                    </div>
+                    <div class="customer-detail">
+                        <span>Phone Number</span>
+                        <strong>{customer_phone}</strong>
+                    </div>
+                    <div class="customer-detail">
+                        <span>Email Address</span>
+                        <strong>{customer_email}</strong>
+                    </div>
+                </section>
             </section>
 
             <div class="row">
@@ -1402,6 +1571,17 @@ def generate_report(
             <div class="recommendation {recommendation_class}">
                 {recommendation}
             </div>
+
+            <section class="insight-grid">
+                <div class="insight-card">
+                    <span>What this means</span>
+                    <strong>{conversational_summary}</strong>
+                </div>
+                <div class="insight-card">
+                    <span>Next best step</span>
+                    <strong>{next_step_summary}</strong>
+                </div>
+            </section>
 
             <div class="transfer-score">
                 <div class="score-number">{transfer_score}/100</div>
