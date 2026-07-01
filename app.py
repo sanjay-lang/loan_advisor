@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, redirect, render_template, request, send_file, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
 import requests
 
 from analysis import generate_loan_analysis
@@ -14,6 +14,177 @@ BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
 DEFAULT_FROM_EMAIL = "onboarding@resend.dev"
 app = Flask(__name__)
+latest_report_context = {}
+
+
+def format_money(amount):
+    if amount == float("inf"):
+        return "Infinite"
+    if amount < 0:
+        return f"-₹{abs(amount):,.0f}"
+    return f"₹{amount:,.0f}"
+
+
+def format_lakh(amount):
+    if amount < 0:
+        return f"-₹{abs(amount) / 100000:,.1f} lakh"
+    return f"₹{amount / 100000:,.1f} lakh"
+
+
+def format_break_even(months):
+    if months == 0:
+        return "Immediate"
+    if months == float("inf"):
+        return "Not achieved"
+    return f"{months:.1f} months"
+
+
+def format_roi(roi):
+    if roi == float("inf"):
+        return "Infinite"
+    return f"{roi:.0f}%"
+
+
+def summarize_report_context(context):
+    if not context:
+        return "No report has been generated yet."
+
+    prepayment = context.get("prepayment_result", {})
+    strategies = context.get("strategies", [])
+    strategy_summary = "; ".join(
+        (
+            f"{strategy['name']}: monthly payment {format_money(strategy['monthly_payment'])}, "
+            f"payoff {strategy['months']} months, savings {format_lakh(strategy['savings'])}"
+        )
+        for strategy in strategies
+    )
+
+    return "\n".join(
+        [
+            f"Loan amount: {format_money(context['loan_amount'])}",
+            f"Current rate: {context['current_rate']:.2f}%",
+            f"New rate: {context['new_rate']:.2f}%",
+            f"Current EMI: {format_money(context['current_emi'])}",
+            f"New EMI: {format_money(context['new_emi'])}",
+            f"Monthly saving: {format_money(context['monthly_saving'])}",
+            f"Net saving: {format_money(context['net_savings'])} ({format_lakh(context['net_savings'])})",
+            f"Break-even period: {format_break_even(context['break_even'])}",
+            f"ROI: {format_roi(context['roi'])}",
+            f"Recommendation: {context['recommendation']}",
+            f"Transfer score: {context['transfer_score']}/100",
+            f"Extra monthly prepayment: {format_money(context['extra_monthly_payment'])}",
+            (
+                "Prepayment simulation: "
+                f"new tenure {prepayment.get('new_tenure_years', 0):.1f} years, "
+                f"interest saved {format_lakh(prepayment.get('interest_saved', 0))}, "
+                f"EMIs saved {prepayment.get('emis_saved', 0)} months"
+            ),
+            (
+                f"Best strategy: {context['best_option']} with "
+                f"{format_lakh(context['best_savings'])} savings"
+            ),
+            f"Strategy comparison: {strategy_summary}",
+        ]
+    )
+
+
+def fallback_chat_answer(question, context):
+    if not context:
+        return "Please generate a loan report first, then I can answer questions about it."
+
+    question_text = question.lower()
+    if any(word in question_text for word in ["recommend", "should", "transfer", "switch"]):
+        return (
+            f"Recommendation: {context['recommendation']}. "
+            f"The transfer score is {context['transfer_score']}/100, monthly saving is "
+            f"{format_money(context['monthly_saving'])}, net saving is "
+            f"{format_lakh(context['net_savings'])}, and break-even is "
+            f"{format_break_even(context['break_even'])}."
+        )
+    if "emi" in question_text:
+        return (
+            f"Your current EMI is {format_money(context['current_emi'])}. "
+            f"The new EMI is {format_money(context['new_emi'])}, giving a monthly saving of "
+            f"{format_money(context['monthly_saving'])}."
+        )
+    if any(word in question_text for word in ["saving", "save", "benefit"]):
+        return (
+            f"Monthly saving is {format_money(context['monthly_saving'])}. "
+            f"Net saving over the remaining tenure is {format_money(context['net_savings'])} "
+            f"({format_lakh(context['net_savings'])})."
+        )
+    if any(word in question_text for word in ["break", "recover", "cost"]):
+        return (
+            f"The transfer cost is {format_money(context['transfer_cost'])}. "
+            f"The break-even period is {format_break_even(context['break_even'])}."
+        )
+    if "roi" in question_text:
+        return f"The estimated ROI on the transfer is {format_roi(context['roi'])}."
+    if any(word in question_text for word in ["prepay", "prepayment", "extra"]):
+        prepayment = context["prepayment_result"]
+        return (
+            f"With an extra monthly prepayment of {format_money(context['extra_monthly_payment'])}, "
+            f"the loan can close in {prepayment['new_tenure_years']:.1f} years, "
+            f"saving {format_lakh(prepayment['interest_saved'])} in interest and "
+            f"{prepayment['emis_saved']} EMIs."
+        )
+    if any(word in question_text for word in ["strategy", "best option", "best"]):
+        return (
+            f"The best strategy is {context['best_option']}, with estimated savings of "
+            f"{format_lakh(context['best_savings'])} compared with continuing the existing loan."
+        )
+
+    return (
+        f"Here is the quick summary: loan amount {format_money(context['loan_amount'])}, "
+        f"current rate {context['current_rate']:.2f}%, new rate {context['new_rate']:.2f}%, "
+        f"monthly saving {format_money(context['monthly_saving'])}, net saving "
+        f"{format_lakh(context['net_savings'])}, break-even {format_break_even(context['break_even'])}, "
+        f"and recommendation: {context['recommendation']}."
+    )
+
+
+def ask_openai(question, context):
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    prompt = (
+        "You are a helpful loan advisor assistant. Answer only using the report data below. "
+        "Be concise, practical, and avoid inventing details.\n\n"
+        f"Report data:\n{summarize_report_context(context)}"
+    )
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                "input": [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": question},
+                ],
+                "temperature": 0.2,
+            },
+            timeout=20,
+        )
+        if response.status_code >= 400:
+            app.logger.error(
+                "OpenAI response error: status=%s body=%s",
+                response.status_code,
+                response.text,
+            )
+        response.raise_for_status()
+        data = response.json()
+        answer = data.get("output_text")
+        if answer:
+            return answer.strip()
+    except Exception:
+        app.logger.exception("Failed to get OpenAI chatbot answer.")
+
+    return None
 
 
 def build_report_pdf_path(phone):
@@ -127,6 +298,8 @@ def save_lead_to_sheet(data):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    global latest_report_context
+
     if request.method == "POST":
         try:
             extra_monthly_payment = float(request.form["extra_monthly_payment"])
@@ -157,6 +330,7 @@ def index():
             )
 
             app.logger.info(f"Analysis result keys: {result.keys()}")
+            latest_report_context = result.get("report_context", {})
 
             save_lead_to_sheet(
                 {
@@ -191,6 +365,20 @@ def index():
         return redirect(url_for("view_report"))
 
     return render_template("index.html", error=None, values={})
+
+
+@app.route("/ask", methods=["POST"])
+def ask():
+    payload = request.get_json(silent=True) or {}
+    question = (payload.get("question") or "").strip()
+    if not question:
+        return jsonify({"answer": "Please type a question about your loan report."}), 400
+
+    answer = ask_openai(question, latest_report_context)
+    if not answer:
+        answer = fallback_chat_answer(question, latest_report_context)
+
+    return jsonify({"answer": answer})
 
 
 @app.route("/report")

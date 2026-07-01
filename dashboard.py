@@ -462,6 +462,91 @@ def generate_report(
                 border-bottom: 1px solid #e2e8f0;
             }}
 
+            .chat-widget {{
+                position: fixed;
+                right: 24px;
+                bottom: 24px;
+                z-index: 20;
+                width: min(380px, calc(100vw - 32px));
+                overflow: hidden;
+                border: 1px solid #dbe3f5;
+                border-radius: 12px;
+                background: white;
+                box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+            }}
+
+            .chat-header {{
+                padding: 13px 16px;
+                background: #243c8f;
+                color: white;
+                font-weight: bold;
+            }}
+
+            .chat-messages {{
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-height: 260px;
+                overflow-y: auto;
+                padding: 14px;
+                background: #f8fafc;
+            }}
+
+            .chat-message {{
+                max-width: 88%;
+                padding: 10px 12px;
+                border-radius: 10px;
+                font-size: 13px;
+                line-height: 1.45;
+            }}
+
+            .chat-message.bot {{
+                align-self: flex-start;
+                border: 1px solid #dbe3f5;
+                background: white;
+                color: #172033;
+            }}
+
+            .chat-message.user {{
+                align-self: flex-end;
+                background: #243c8f;
+                color: white;
+            }}
+
+            .chat-form {{
+                display: flex;
+                gap: 8px;
+                padding: 12px;
+                border-top: 1px solid #e2e8f0;
+                background: white;
+            }}
+
+            .chat-form input {{
+                flex: 1;
+                min-width: 0;
+                height: 38px;
+                padding: 0 10px;
+                border: 1px solid #cfd7e6;
+                border-radius: 8px;
+                font: inherit;
+            }}
+
+            .chat-form button {{
+                height: 38px;
+                padding: 0 14px;
+                border: 0;
+                border-radius: 8px;
+                background: #087443;
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+            }}
+
+            .chat-form button:disabled {{
+                cursor: wait;
+                opacity: 0.7;
+            }}
+
             .comparison-table {{
                 width: 100%;
                 min-width: 680px;
@@ -1099,6 +1184,10 @@ def generate_report(
                     display: none;
                 }}
 
+                .chat-widget {{
+                    display: none;
+                }}
+
                 .pdf-chart {{
                     display: block;
                     padding: 9px 10px;
@@ -1577,6 +1666,70 @@ def generate_report(
             </section>
 
         </div>
+
+        <section class="chat-widget" aria-label="Loan report chatbot">
+            <div class="chat-header">Ask about this report</div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message bot">
+                    Ask me about EMI, savings, break-even, ROI, prepayment, or the best strategy.
+                </div>
+            </div>
+            <form class="chat-form" id="chatForm">
+                <input
+                    id="chatQuestion"
+                    name="question"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Ask a question"
+                    required
+                >
+                <button type="submit" id="chatSubmit">Ask</button>
+            </form>
+        </section>
+
+        <script>
+            const chatForm = document.getElementById("chatForm");
+            const chatQuestion = document.getElementById("chatQuestion");
+            const chatMessages = document.getElementById("chatMessages");
+            const chatSubmit = document.getElementById("chatSubmit");
+
+            function addChatMessage(text, type) {{
+                const message = document.createElement("div");
+                message.className = `chat-message ${{type}}`;
+                message.textContent = text;
+                chatMessages.appendChild(message);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }}
+
+            chatForm.addEventListener("submit", async (event) => {{
+                event.preventDefault();
+                const question = chatQuestion.value.trim();
+                if (!question) {{
+                    return;
+                }}
+
+                addChatMessage(question, "user");
+                chatQuestion.value = "";
+                chatSubmit.disabled = true;
+
+                try {{
+                    const response = await fetch("/ask", {{
+                        method: "POST",
+                        headers: {{
+                            "Content-Type": "application/json"
+                        }},
+                        body: JSON.stringify({{ question }})
+                    }});
+                    const data = await response.json();
+                    addChatMessage(data.answer || "I could not answer that yet.", "bot");
+                }} catch (error) {{
+                    addChatMessage("I could not reach the advisor right now. Please try again.", "bot");
+                }} finally {{
+                    chatSubmit.disabled = false;
+                    chatQuestion.focus();
+                }}
+            }});
+        </script>
 
     </body>
     </html>
