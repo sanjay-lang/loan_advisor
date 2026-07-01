@@ -569,7 +569,10 @@ def generate_report(
                 right: 22px;
                 bottom: 22px;
                 z-index: 20;
-                width: min(410px, calc(100vw - 32px));
+                width: min(360px, calc(100vw - 32px));
+                min-height: 560px;
+                display: flex;
+                flex-direction: column;
                 overflow: hidden;
                 border: 1px solid rgba(148, 163, 184, 0.25);
                 border-radius: 24px;
@@ -578,17 +581,39 @@ def generate_report(
             }}
 
             .chat-header {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
                 padding: 16px 18px;
                 background: linear-gradient(135deg, #1e3a8a, #0f766e);
                 color: white;
                 font-weight: bold;
             }}
 
+            .chat-minimize {{
+                width: 32px;
+                height: 32px;
+                border: 1px solid rgba(255, 255, 255, 0.35);
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.14);
+                color: white;
+                font-size: 22px;
+                line-height: 1;
+                cursor: pointer;
+            }}
+
+            .chat-minimize:hover {{
+                background: rgba(255, 255, 255, 0.24);
+            }}
+
             .chat-messages {{
+                flex: 1;
                 display: flex;
                 flex-direction: column;
                 gap: 10px;
-                max-height: 300px;
+                min-height: 410px;
+                max-height: 410px;
                 overflow-y: auto;
                 padding: 16px;
                 background: #f8fafc;
@@ -647,6 +672,15 @@ def generate_report(
             .chat-form button:disabled {{
                 cursor: wait;
                 opacity: 0.7;
+            }}
+
+            .chat-widget.is-minimized {{
+                min-height: 0;
+            }}
+
+            .chat-widget.is-minimized .chat-messages,
+            .chat-widget.is-minimized .chat-form {{
+                display: none;
             }}
 
             .comparison-table {{
@@ -1848,7 +1882,16 @@ def generate_report(
         </div>
 
         <section class="chat-widget" aria-label="Loan report chatbot">
-            <div class="chat-header">Ask about this report</div>
+            <div class="chat-header">
+                <span>Ask about this report</span>
+                <button
+                    class="chat-minimize"
+                    id="chatMinimize"
+                    type="button"
+                    aria-label="Minimize chat"
+                    aria-expanded="true"
+                >-</button>
+            </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="chat-message bot">
                     Ask me about EMI, savings, break-even, ROI, prepayment, or the best strategy.
@@ -1868,10 +1911,12 @@ def generate_report(
         </section>
 
         <script>
+            const chatWidget = document.querySelector(".chat-widget");
             const chatForm = document.getElementById("chatForm");
             const chatQuestion = document.getElementById("chatQuestion");
             const chatMessages = document.getElementById("chatMessages");
             const chatSubmit = document.getElementById("chatSubmit");
+            const chatMinimize = document.getElementById("chatMinimize");
 
             function addChatMessage(text, type) {{
                 const message = document.createElement("div");
@@ -1880,6 +1925,16 @@ def generate_report(
                 chatMessages.appendChild(message);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }}
+
+            chatMinimize.addEventListener("click", () => {{
+                const isMinimized = chatWidget.classList.toggle("is-minimized");
+                chatMinimize.textContent = isMinimized ? "+" : "-";
+                chatMinimize.setAttribute("aria-label", isMinimized ? "Open chat" : "Minimize chat");
+                chatMinimize.setAttribute("aria-expanded", String(!isMinimized));
+                if (!isMinimized) {{
+                    chatQuestion.focus();
+                }}
+            }});
 
             chatForm.addEventListener("submit", async (event) => {{
                 event.preventDefault();
